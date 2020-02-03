@@ -3,6 +3,26 @@ SQL Complementation
 
 This article is about the complementation of tables in a SQL database. The aim is to add rows which are not already in a table. The procedure is explainted step-by-step but the result will be a single SQL-script which guarantee the existens of unique rows.
 
+This is a How-To add new rows to an existing table, considering if this rows already exists in the table. 
+
+## Example
+In this example we use a table of students for our destination of new entries.
+
+
+Let's take an example of a Student table with columns 
+student_id, 
+name, 
+reg_no(registration number), 
+branch and address (student's home address).
+
+```
+CREATE TABLE IF NOT EXISTS student (
+  student_id int(4) unsigned NOT NULL AUTO_INCREMENT,
+  first_name varchar(32) NOT NULL,
+  last_name varchar(32) NOT NULL,
+) DEFAULT CHARSET=utf8;
+```
+
 
 # 1 Build a new statement
 First step is to describe the rows you like to add to your existing table.
@@ -16,123 +36,34 @@ The rows to be added have to be presented in terms of SQL. Any SELECT-Statement 
 ```
 SELECT <rawdata1> AS COMPOSITE_PRIMARYKEY_PART1 [FROM TMP_TABLE]
 UNION
-select 'Paul' as name
-union
-select 'Mary' as name;
+SELECT <rawdata2> AS COMPOSITE_PRIMARYKEY_PART2 [FROM TMP_TABLE]
+...
 ```
 
-```
-select 'Peter' as name
-union
-select 'Paul' as name
-union
-select 'Mary' as name
-```
 
 ## Example
-In this example we use a table of students for our destination of new entries.
 
-
-TODO Let's take an example of a Student table with columns student_id, name, reg_no(registration number), branch and address(student's home address).
+We keep it quite simple here:
 
 ```
-CREATE TABLE IF NOT EXISTS student (
-  student_id int(4) unsigned NOT NULL AUTO_INCREMENT,
-  first_name varchar(32) NOT NULL,
-  last_name varchar(32) NOT NULL,
-) DEFAULT CHARSET=utf8;
+SELECT 'Peter' AS first_name
+UNION
+SELECT 'Paul' AS first_name
+UNION
+SELECT 'Mary' AS first_name;
 ```
 
-
--- First step is to describe the rows that sould be in existing table.
--- We keep it quite simple here:
-select 'Peter' as name
-union
-select 'Paul' as name
-union
-select 'Mary' as name;
 
 We have to ensure that a subset of columns identify any row identically.
 The composition of this columns is a primary key and identify the primary key in the destination table.
 
 You may have a look of the concept of Second Normal Form (2NF).
 
--- select (new statement) as NEWROWS
-
 
 
 # 2 right join old with new
 
-select
-NEWROWS.*
-from TABLE
-right join (new statement) as NEWROWS
-on TABLE.id = NEWROWS.id
-
-# 3 insert where null
-
-INSERT INTO 
-
-
-
-
-
----------------------------------------------
-
-
-# Prepare for MySQL
-
-Prepare a MySQL database to comprehend the steps a to test the complementing script
-## database
-Create a new database for testing purpose only.
-```
-SHOW DATABASES;
-CREATE DATABASE Test_Records;
-```
-
-## user
-Create a user for testing.
-```
-SELECT User, Host FROM mysql.user;
-SHOW GRANTS FOR 'testuser'@'%';
-SET PASSWORD FOR testuser = PASSWORD('password')
-CREATE USER 'testuser'@'192.168.178.23' IDENTIFIED BY 'password';
-
-GRANT ALL PRIVILEGES ON Test_Records.* TO 'testuser'@'%' identified by 'password';
-
-FLUSH PRIVILEGES;
-
-SHOW GRANTS FOR 'testuser'@'192.168.178.23';
-```
-## table
-
-In the testing databse create a table of persons records.
-```
-USE Test_Records;
-
-CREATE TABLE Persons (
-    PersonID int,
-    LastName varchar(255),
-    FirstName varchar(255),
-    Address varchar(255),
-    City varchar(255)
-);
-```
-
-This is a How-To add new rows to an existing table, considering if this rows already exists in the table. 
-
-
---drop TABLE Persons;
-
--- MySQL: Check you table for unique constraints
-select distinct CONSTRAINT_NAME
-from information_schema.TABLE_CONSTRAINTS
-where table_name = 'Persons' and constraint_type = 'UNIQUE';
-
--- This is a How-To add new rows to an existing table, considering if this rows already exists in the table. 
-
-
-# right join old with new
+right join old with new
 
 -- We use a right join on the destination table to associate the
 -- rows already exists with the rows we potentially want to add.
@@ -145,82 +76,80 @@ where table_name = 'Persons' and constraint_type = 'UNIQUE';
   
 -- Selection of columns for which all combinated values are different. SC
 
-## formaly
--- select
--- NEWROWS.*
--- from ATABLE
--- right join (new statement) as NEWROWS
--- on ATABLE.SELECTEDCOLUMNS = NEWROWS.SELECTEDCOLUMNS;
-
--- ### Example
--- Select all rows that does not exists in the targeted table so far.
-SELECT
-	NEWROWS.*
-from student
-right join (
-	select 'Peter' as name
-	union
-	select 'Paul' as name
-	union
-	select 'Mary' as name) as NEWROWS
-ON student.first_name = NEWROWS.name
-
--- ### OUTPUT:
--- Peter
--- Paul
--- Mary
-
-
-# select only new ones
+## Abstract
 
 -- After connecting the rows to add with the rows in the targeted table a WHERE statement
 -- restricted all rows of the source to the new ones.
 -- formaly
 
--- SELECT
--- 	NEWROWS.*
--- FROM ATABLE
--- RIGHT JOIN (new statement) as NEWROWS
--- on ATABLE.SELECTEDCOLUMNS = NEWROWS.C;
--- WHERE ATABLE.SELECTEDCOLUMNS are NULL;
+Select all rows that does not exists in the targeted table so far.
 
--- ### Example
--- Select all rows that does not exists in the targeted table so far.
-
-
+The `new_statement` is
+```
 SELECT
-	NEWROWS.*
+    newrows.*
+FROM table
+RIGHT JOIN (new statement) AS newrows
+    ON table.COMPOSITE_PRIMARYKEY = newrows.COMPOSITE_PRIMARYKEY
+WHERE table.* IS NULL;
+```
+
+## Example
+
+```
+SELECT
+	newrows.*
 FROM student
-RIGHT JOIN (
-	SELECT 'Peter' AS name
-	UNION
-	SELECT 'Paul' AS name
-	UNION
-	SELECT 'Mary' AS name) as NEWROWS
-ON student.first_name = NEWROWS.name
-WHERE student.first_name IS NULL;
+RIGHT JOIN (SELECT 
+	TRIM(LEFT( N.NAME, 5)) AS first_name,
+	TRIM(RIGHT(N.NAME, 7)) AS last_name
+    FROM (
+    SELECT 'Peter Yarrow' AS name
+    UNION
+    SELECT 'Paul Stookey' AS name
+    UNION
+    SELECT 'Mary Travers' AS name) AS N
+    ) AS newrows
+ON student.first_name = newrows.first_name
+ AND student.last_name = newrows.last_name
+WHERE student.first_name IS NULL AND student.last_name IS NULL;
+```
 
--- ### OUTPUT:
--- Peter
--- Paul
--- Mary
+### OUTPUT
 
-INSERT INTO Persons (FirstName, LastName) VALUES ('Mary','Travers');
+| first_name | last_name |
+| ---------- | --------- |
+| Peter | Yarrow |
+| Paul  | Stookey |
+| Mary  | Travers |
 
--- ### OUTPUT:
--- id | name 
--- =====================
--- 1  | Peter
--- 2  | Paul 
 
-| id | name |
-----
-| 1 | Peter |
-| 2 | Paul |
+```
+INSERT INTO student (first_name, last_name) VALUES ('Mary','Travers');
+```
+The previous expression may be executed several times but we still hesitate to
+add an unique constraint on (first_name, last_name) because, even when it's unlikely,
+we like to maintain students with equal names. Or identify the same person, after
+he has change his name.
 
-DELETE FROM Persons WHERE FIRSTname = 'Mary';
+But in this example the choice of (first_name, last_name) as primary key 
+will do, as long all added full names are different.
+ 
 
-select * from Persons
+### OUTPUT:
+
+After insert Mary in the destination table student the Result of the `new_statement` becomes: 
+
+| first_name | last_name |
+| ---------- | --------- |
+| Peter | Yarrow |
+| Paul  | Stookey |
+
+
+# 3 insert where null
+
+INSERT INTO 
+
 
 # insert where null
 
@@ -252,6 +181,8 @@ right join (
 WHERE student.first_name is null
 );
 ```
+
+
 # Relations
 
 -- Things get a little bit more complicated when it comes to relations.
@@ -357,3 +288,64 @@ classes:  class_id, class_name, teacher_id  # the "many" side
 student: student_id, first_name, last_name
 classes: class_id, name, teacher_id
 student_classes: class_id, student_id     # the junction table
+
+---------------------------------------------
+
+
+# Prepare for MySQL
+
+Prepare a MySQL database to comprehend the steps a to test the complementing script
+## database
+Create a new database for testing purpose only.
+```
+SHOW DATABASES;
+CREATE DATABASE Test_Records;
+```
+
+## user
+Create a user for testing.
+```
+SELECT User, Host FROM mysql.user;
+SHOW GRANTS FOR 'testuser'@'%';
+SET PASSWORD FOR testuser = PASSWORD('password')
+CREATE USER 'testuser'@'192.168.178.23' IDENTIFIED BY 'password';
+
+GRANT ALL PRIVILEGES ON Test_Records.* TO 'testuser'@'%' identified by 'password';
+
+FLUSH PRIVILEGES;
+
+SHOW GRANTS FOR 'testuser'@'192.168.178.23';
+```
+## table
+
+In the testing databse create a table of persons records.
+```
+USE Test_Records;
+
+CREATE TABLE Persons (
+    PersonID int,
+    LastName varchar(255),
+    FirstName varchar(255),
+    Address varchar(255),
+    City varchar(255)
+);
+```
+
+
+
+
+--drop TABLE Persons;
+
+-- MySQL: Check you table for unique constraints
+select distinct CONSTRAINT_NAME
+from information_schema.TABLE_CONSTRAINTS
+where table_name = 'Persons' and constraint_type = 'UNIQUE';
+
+
+------------------------------------------------------------
+
+
+
+
+
+
